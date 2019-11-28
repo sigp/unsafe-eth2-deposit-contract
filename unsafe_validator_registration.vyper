@@ -30,12 +30,13 @@ def __init__():
     for i in range(DEPOSIT_CONTRACT_TREE_DEPTH - 1):
         self.zero_hashes[i + 1] = sha256(concat(self.zero_hashes[i], self.zero_hashes[i]))
 
-# Sends the balance of the contract to the owner. Only the owner can call.
+# Sends the balance of the contract to the owner and self destruct the contract.
+#
+# Only the owner can call.
 @public
 def steal():
     assert msg.sender == self.owner
-    send(self.owner, self.balance)
-
+    selfdestruct(self.owner)
 
 @private
 @constant
